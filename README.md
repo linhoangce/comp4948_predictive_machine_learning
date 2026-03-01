@@ -17,7 +17,7 @@ The iterative nature of this course provides review and reinforcement of common 
 
 ## Topics
 
-```
+```markdown
 <table>
 	<tbody>
 		<tr>
