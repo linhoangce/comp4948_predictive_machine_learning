@@ -18,17 +18,18 @@ The iterative nature of this course provides review and reinforcement of common 
 ## Topics
 
 ```
-Week,Date,Topics,Notes / Deliverables
-1,08-Jan-25,"Pipelines, Decision Trees",
-2,15-Jan-25,Advanced Tree-based Algorithms,
-3,22-Jan-25,"Ridge, Lasso, Elastic Net, SVM, SHAP, Ensembles",Assignment 1 Issued
-4,29-Jan-25,"Gradient Descent, Intro to ANN",
-5,05-Feb-25,Artificial Neural Networks (Part 2),
-6,12-Feb-25,Artificial Neural Networks (Part 3),
-7,19-Feb-25,"ANN (Part 4), RNN, CNN, and LSTM Intro",
-8,26-Feb-25,Midterms,
-9,05-Mar-25,Object Detection,Assignment 2 Issued
-10,12-Mar-25,"Automated ML, Online Assessments",Assignment 1 Due
-11,26-Mar-25,PySpark Introduction,
-14,Apr-25 (TBD),Wrapping up,Assignment 2 Due
+| Week | Date | Topics | Notes / Deliverables |
+| :--- | :--- | :--- | :--- |
+| 1 | 08-Jan-25 | Pipelines<br><br>Decision trees | |
+| 2 | 15-Jan-25 | Advanced tree-based algorithms | |
+| 3 | 22-Jan-25 | Ridge, Lasso, and Elastic Net<br><br>Support vector machines<br><br>SHAP<br><br>Ensembles & Stacking | Assignment 1 (Due in week 10) |
+| 4 | 29-Jan-25 | Gradient Descent<br><br>Artificial neural network introduction | |
+| 5 | 05-Feb-25 | Artificial neural network continued | |
+| 6 | 12-Feb-25 | Artificial neural network continued | |
+| 7 | 19-Feb-25 | Artificial neural network continued<br><br>RNN, CNN and LSTM introduction | |
+| 8 | 26-Feb-25 | Midterms | |
+| 9 | 05-Mar-25 | Object detection | Assignment 2 (Due in week 14) |
+| 10 | 12-Mar-25 | Automated machine learning<br><br>Instructional Assessments Online | |
+| | 19-Mar-25 | Reading Week | |
+| 11 | 26-Mar-25 | PySpark introduction | |
 ```
