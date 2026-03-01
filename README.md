@@ -17,6 +17,7 @@ The iterative nature of this course provides review and reinforcement of common 
 
 ## Topics
 
+```
 Week,Date,Topics,Notes / Deliverables
 1,08-Jan-25,"Pipelines, Decision Trees",
 2,15-Jan-25,Advanced Tree-based Algorithms,
@@ -30,3 +31,4 @@ Week,Date,Topics,Notes / Deliverables
 10,12-Mar-25,"Automated ML, Online Assessments",Assignment 1 Due
 11,26-Mar-25,PySpark Introduction,
 14,Apr-25 (TBD),Wrapping up,Assignment 2 Due
+```
