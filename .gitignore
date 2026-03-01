@@ -1,0 +1,32 @@
+# --- PyCharm/JetBrains ---
+.idea/
+*.iml
+cmake-build-*/
+out/
+parts/
+
+# --- Python & Environment ---
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv
+env/
+venv/
+ENV/
+build/
+dist/
+.pytest_cache/
+
+# --- Machine Learning & Data ---
+# Exclude your local model weights and datasets
+*.pth
+*.joblib
+*.pkl
+*.onnx
+data/
+outputs/
+
+# --- OS Specific ---
+.DS_Store
+Thumbs.db
