@@ -1,0 +1,174 @@
+import numpy as np
+from sklearn.feature_selection import SelectFromModel
+import xgboost as xgb
+import pandas as pd
+import optuna
+from optuna import TrialPruned
+from optuna.integration import XGBoostPruningCallback
+from sklearn.metrics import classification_report, f1_score, precision_recall_curve
+from sklearn.model_selection import train_test_split, StratifiedKFold
+from imblearn.over_sampling import SMOTE
+from collections import Counter
+import json
+
+df = pd.read_csv("data/bankruptcy_asgn2.csv")
+X = df.drop(columns=["Bankrupt?"])
+y = df["Bankrupt?"]
+
+feature_names = list(X.columns)
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, stratify=y, random_state=42
+)
+
+X_train_arr = np.array(X_train)
+y_train_arr = np.array(y_train)
+X_test_arr  = np.array(X_test)
+y_test_arr  = np.array(y_test)
+
+def f1_class1_metric(y_pred, dtrain):
+    y_true = dtrain.get_label()
+    y_pred_binary = (y_pred > 0.5).astype(int)
+    score = f1_score(y_true, y_pred_binary, pos_label=1, zero_division=0)
+    return "f1_class1", score
+
+def objective(trial):
+    params = {
+        "max_depth":        trial.suggest_int("max_depth", 4, 10),
+        "learning_rate":    trial.suggest_float("learning_rate", 1e-4, 0.5, log=True),
+        "subsample":        trial.suggest_float("subsample", 0.5, 1.0),
+        "colsample_bytree": trial.suggest_float("colsample_bytree", 0.5, 1.0),
+        "reg_alpha":        trial.suggest_float("reg_alpha", 1e-8, 10.0, log=True),
+        "reg_lambda":       trial.suggest_float("reg_lambda", 1e-8, 10.0, log=True),
+        "min_child_weight": trial.suggest_int("min_child_weight", 1, 10),
+        "gamma":            trial.suggest_float("gamma", 0, 5),
+        "objective":        "binary:logistic",
+        "seed":             42,
+    }
+    n_estimators = trial.suggest_int("n_estimators", 100, 500)
+    threshold    = trial.suggest_float("threshold", 0.3, 0.7)
+    n_features   = trial.suggest_int("n_features", 20, 98)
+
+    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    fold_scores = []
+
+    for fold, (tr_idx, val_idx) in enumerate(skf.split(X_train_arr, y_train_arr)):
+        X_tr,  X_val = X_train_arr[tr_idx], X_train_arr[val_idx]
+        y_tr,  y_val = y_train_arr[tr_idx],  y_train_arr[val_idx]
+
+        X_tr_smote, y_tr_smote = SMOTE(random_state=42).fit_resample(X_tr, y_tr)
+
+        selector = SelectFromModel(
+            xgb.XGBClassifier(n_estimators=100, random_state=42),
+            max_features=n_features,
+            threshold=-np.inf,
+        )
+        selector.fit(X_tr_smote, y_tr_smote)
+        X_tr_sel  = selector.transform(X_tr_smote)
+        X_val_sel = selector.transform(X_val)
+
+        booster = xgb.train(
+            params,
+            xgb.DMatrix(X_tr_sel, label=y_tr_smote),
+            num_boost_round=n_estimators,
+            evals=[(xgb.DMatrix(X_val_sel, label=y_val), "validation")],
+            custom_metric=f1_class1_metric,
+            verbose_eval=False,
+        )
+
+        y_pred = (booster.predict(xgb.DMatrix(X_val_sel)) > threshold).astype(int)
+        fold_scores.append(f1_score(y_val, y_pred, pos_label=1, zero_division=0))
+
+        trial.report(np.mean(fold_scores), step=fold)
+        if trial.should_prune():
+            raise TrialPruned()
+
+    return np.mean(fold_scores)
+
+
+sampler = optuna.samplers.TPESampler(seed=42)
+pruner  = optuna.pruners.MedianPruner(n_startup_trials=20, n_warmup_steps=2, interval_steps=1)
+study   = optuna.create_study(direction="maximize", sampler=sampler, pruner=pruner)
+study.optimize(objective, n_trials=200, catch=(Exception,))
+
+# ── extract best params ─────────────────────────────────────────────────────
+best         = study.best_params.copy()
+threshold    = best.pop("threshold", 0.5)
+n_estimators = best.pop("n_estimators")
+n_features   = best.pop("n_features")
+
+print("\n" + "="*60)
+print("BEST OPTUNA RESULTS")
+print("="*60)
+print(f"Best CV F1 (class 1): {study.best_value:.4f}")
+print(f"Best trial:           #{study.best_trial.number}")
+print(f"Threshold:            {threshold:.4f}")
+print(f"n_estimators:         {n_estimators}")
+print(f"n_features selected:  {n_features}")
+print("\nModel hyperparameters:")
+for k, v in best.items():
+    print(f"  {k}: {v}")
+
+# ── refit final selector on full SMOTE training data ───────────────────────
+X_train_final, y_train_final = SMOTE(random_state=42).fit_resample(X_train_arr, y_train_arr)
+
+final_selector = SelectFromModel(
+    xgb.XGBClassifier(n_estimators=100, random_state=42),
+    max_features=n_features,
+    threshold=-np.inf,
+)
+final_selector.fit(X_train_final, y_train_final)
+
+# get selected feature names using the original feature list
+selected_mask  = final_selector.get_support()
+selected_features = [feature_names[i] for i, selected in enumerate(selected_mask) if selected]
+
+print(f"\nSelected {len(selected_features)} features (out of {len(feature_names)}):")
+for i, feat in enumerate(selected_features, 1):
+    print(f"  {i:>2}. {feat}")
+
+# ── transform and train final model ────────────────────────────────────────
+X_train_sel = final_selector.transform(X_train_final)
+X_test_sel  = final_selector.transform(X_test_arr)
+
+model = xgb.XGBClassifier(
+    **best,
+    n_estimators=n_estimators,
+    objective="binary:logistic",
+    random_state=42,
+)
+model.fit(X_train_sel, y_train_final)
+
+# ── find best threshold via PR curve on test set ───────────────────────────
+y_prob = model.predict_proba(X_test_sel)[:, 1]
+precision_arr, recall_arr, thresholds_arr = precision_recall_curve(y_test_arr, y_prob)
+f1_arr = 2 * (precision_arr * recall_arr) / (precision_arr + recall_arr + 1e-9)
+pr_threshold = thresholds_arr[np.argmax(f1_arr[:-1])]
+
+print("\n" + "="*60)
+print("FINAL EVALUATION")
+print("="*60)
+
+for name, t in [("Optuna threshold", threshold), ("PR curve threshold", pr_threshold)]:
+    y_pred = (y_prob > t).astype(int)
+    f1 = f1_score(y_test_arr, y_pred, pos_label=1, zero_division=0)
+    print(f"\n── {name}: {t:.4f}  |  F1 class 1: {f1:.4f} ──")
+    print(classification_report(y_test_arr, y_pred))
+
+# ── save results to json ───────────────────────────────────────────────────
+results = {
+    "best_cv_f1":       study.best_value,
+    "best_trial":       study.best_trial.number,
+    "optuna_threshold": threshold,
+    "pr_threshold":     float(pr_threshold),
+    "n_estimators":     n_estimators,
+    "n_features":       n_features,
+    "model_params":     best,
+    "selected_features": selected_features,
+}
+
+with open("data/best_params.json", "w") as f:
+    json.dump(results, f, indent=2)
+
+print("\nResults saved to data/best_params.json")
+print("="*60)
